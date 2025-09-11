@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from depth_anything_v2.dinov2 import DINOv2
 from efficientnet_pytorch import EfficientNet
+from flownav.models.action_encoder import ActionEncoder
 from flownav.models.attention import PositionalEncoding
 
 
@@ -24,9 +25,10 @@ class NoMaD_ViNT(nn.Module):
         """
         super().__init__()
         self.obs_encoding_size = obs_encoding_size
-        self.goal_encoding_size = obs_encoding_size
+        self.goal_encoding_size = 128
         self.context_size = context_size
         self.depth_cfg = depth_cfg
+        self.action_encoder = nn.Linear(2, self.goal_encoding_size)
 
         # Initialize the observation encoder
         if obs_encoder.split("-")[0] == "efficientnet":
@@ -39,7 +41,7 @@ class NoMaD_ViNT(nn.Module):
 
         # Initialize the goal encoder
         self.goal_encoder = EfficientNet.from_name(
-            "efficientnet-b0", in_channels=6
+            "efficientnet-b0", in_channels=3
         )  # obs+goal
         self.goal_encoder = replace_bn_with_gn(self.goal_encoder)
         self.num_goal_features = self.goal_encoder._fc.in_features
@@ -72,7 +74,7 @@ class NoMaD_ViNT(nn.Module):
             self.compress_depth_enc = nn.Sequential(
                 nn.AdaptiveAvgPool1d(self.depth_pool_dim),
                 nn.Flatten(),
-                nn.Linear(self.num_depth_features, self.goal_encoding_size),
+                nn.Linear(self.num_depth_features, self.obs_encoding_size),
             )
         else:
             self.compress_depth_enc = nn.Identity()
@@ -92,7 +94,7 @@ class NoMaD_ViNT(nn.Module):
         self.sa_encoder = nn.TransformerEncoder(
             self.sa_layer, num_layers=mha_num_attention_layers
         )
-
+        
         # Definition of the goal mask (convention: 0 = no mask, 1 = mask)
         mask_size = self.context_size + 3
         self.goal_mask = torch.zeros((1, mask_size), dtype=torch.bool)
@@ -125,10 +127,12 @@ class NoMaD_ViNT(nn.Module):
         if input_goal_mask is not None:
             goal_mask = input_goal_mask.to(device)
 
+        goal_pos_encoding = self.action_encoder(goal_img)
+        if len(goal_pos_encoding.shape) == 2:
+            goal_pos_encoding = goal_pos_encoding.unsqueeze(1)
         # Get the goal encoding
-        obsgoal_img = torch.cat(
-            [obs_img[:, 3 * self.context_size :, :, :], goal_img], dim=1
-        )  # concatenate the obs image/context and goal image --> non image goal?
+         # concatenate the obs image/context and goal image --> non image goal?
+        obsgoal_img = obs_img[:, 3 * self.context_size :, :, :].squeeze(1)
         obsgoal_encoding = self.goal_encoder.extract_features(
             obsgoal_img
         )  # get encoding of this img
@@ -144,21 +148,21 @@ class NoMaD_ViNT(nn.Module):
         if len(obsgoal_encoding.shape) == 2:
             obsgoal_encoding = obsgoal_encoding.unsqueeze(1)
         assert obsgoal_encoding.shape[2] == self.goal_encoding_size
-        goal_encoding = obsgoal_encoding
+        goal_encoding = torch.cat([obsgoal_encoding, goal_pos_encoding], dim=2)
 
         # Depth Encoding
         depth_inp = obs_img[:, 3 * self.context_size :, :, :]
-        depth_inp = F.pad(depth_inp, (1, 1, 1, 1), mode="constant", value=0)
+        depth_inp = F.pad(depth_inp, (6, 6, 1, 1), mode="constant", value=0)
         dpt_enc_all = self.depth_encoder.get_intermediate_layers(
             depth_inp, self.depth_layer_idx, return_class_token=False
         )
-
+        # breakpoint()
         # size: [B, C, dino_dim]  ----> need to pool along 'C'
         dpt_enc_last = dpt_enc_all[-1].permute(0, 2, 1)
         depth_encoding = self.compress_depth_enc(dpt_enc_last.float())
         if len(depth_encoding.shape) == 2:
             depth_encoding = depth_encoding.unsqueeze(1)
-        assert depth_encoding.shape[2] == self.goal_encoding_size
+        # assert depth_encoding.shape[2] == self.goal_encoding_size
 
         # Get the observation encoding
         obs_img = torch.split(obs_img, 3, dim=1)
@@ -175,6 +179,7 @@ class NoMaD_ViNT(nn.Module):
         )
         obs_encoding = torch.transpose(obs_encoding, 0, 1)
 
+        # breakpoint()
         obs_encoding = torch.cat((obs_encoding, depth_encoding, goal_encoding), dim=1)
 
         # If a goal mask is provided, mask some of the goal tokens
@@ -185,6 +190,8 @@ class NoMaD_ViNT(nn.Module):
             )
         else:
             src_key_padding_mask = None
+
+        src_key_padding_mask = None
 
         # Apply positional encoding
         if self.positional_encoding:

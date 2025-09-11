@@ -100,12 +100,13 @@ def evaluate(
             batch_viz_obs_images = TF.resize(
                 obs_images[-1], VISUALIZATION_IMAGE_SIZE[::-1]
             )
-            batch_viz_goal_images = TF.resize(
-                goal_image, VISUALIZATION_IMAGE_SIZE[::-1]
-            )
+            # batch_viz_goal_images = TF.resize(
+            #     goal_image, VISUALIZATION_IMAGE_SIZE[::-1]
+            # )
+            batch_viz_goal_images = goal_image
             batch_obs_images = [transform(obs) for obs in obs_images]
             batch_obs_images = torch.cat(batch_obs_images, dim=1).to(device)
-            batch_goal_images = transform(goal_image).to(device)
+            batch_goal_images = goal_image.to(device)
             action_mask = action_mask.to(device)
 
             # Get batch size

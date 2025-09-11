@@ -1,0 +1,47 @@
+{
+  "os": "Linux-6.0.12-76060012-generic-x86_64-with-glibc2.31",
+  "python": "CPython 3.10.8",
+  "startedAt": "2025-09-11T05:34:36.289679Z",
+  "program": "/home/theyanesh.er/flownav/train_carla.py",
+  "codePath": "train_carla.py",
+  "codePathLocal": "train_carla.py",
+  "git": {
+    "remote": "https://github.com/theyanesher/flownav.git",
+    "commit": "251dcd2ea570491db174048429a480648598eba8"
+  },
+  "email": "theyanesher@gmail.com",
+  "root": "/home/theyanesh.er/flownav",
+  "host": "pop-os",
+  "executable": "/home/theyanesh.er/miniconda3/envs/nomad_train/bin/python",
+  "cpu_count": 12,
+  "cpu_count_logical": 24,
+  "gpu": "NVIDIA GeForce GTX 1070",
+  "gpu_count": 2,
+  "disk": {
+    "/": {
+      "total": "486875860992",
+      "used": "419552198656"
+    }
+  },
+  "memory": {
+    "total": "33583415296"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce GTX 1070",
+      "memoryTotal": "8589934592",
+      "cudaCores": 1920,
+      "architecture": "Pascal",
+      "uuid": "GPU-accce6fe-c908-c93f-b212-4dacacc8c0df"
+    },
+    {
+      "name": "NVIDIA GeForce RTX 3060",
+      "memoryTotal": "12884901888",
+      "cudaCores": 3584,
+      "architecture": "Ampere",
+      "uuid": "GPU-181b55fa-18f2-c6ed-493f-7cd6a56b3f02"
+    }
+  ],
+  "cudaVersion": "12.0",
+  "writerId": "b16wt6sxzt9nvsa5y7mnomic713ima8b"
+}

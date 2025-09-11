@@ -90,16 +90,19 @@ def train(
             ) = data
 
             # Split the observation image into RGB channels
+            # obs_image = obs_image.view(obs_image.size(0), -1,obs_image.size(3), obs_image.size(4)) # (taken care in dataset)
             obs_images = torch.split(obs_image, 3, dim=1)
+            # breakpoint()
             batch_viz_obs_images = TF.resize(
                 obs_images[-1], VISUALIZATION_IMAGE_SIZE[::-1]
             )
-            batch_viz_goal_images = TF.resize(
-                goal_image, VISUALIZATION_IMAGE_SIZE[::-1]
-            )
+            # batch_viz_goal_images = TF.resize(
+            #     goal_image, VISUALIZATION_IMAGE_SIZE[::-1]
+            # )
+            batch_viz_goal_images = goal_image
             batch_obs_images = [transform(obs) for obs in obs_images]
             batch_obs_images = torch.cat(batch_obs_images, dim=1).to(device)
-            batch_goal_images = transform(goal_image).to(device)
+            batch_goal_images = goal_image.to(device)
 
             # Get action mask
             action_mask = action_mask.to(device)
@@ -125,12 +128,12 @@ def train(
             distance = distance.float().to(device)
 
             # Predict distance
-            dist_pred = model("dist_pred_net", obsgoal_cond=obsgoal_cond)
-            dist_loss = nn.functional.mse_loss(dist_pred.squeeze(-1), distance)
-            dist_loss = (dist_loss * (1 - goal_mask.float())).mean() / (
-                1e-2 + (1 - goal_mask.float()).mean()
-            )
-
+            # dist_pred = model("dist_pred_net", obsgoal_cond=obsgoal_cond)
+            # dist_loss = nn.functional.mse_loss(dist_pred.squeeze(-1), distance)
+            # dist_loss = (dist_loss * (1 - goal_mask.float())).mean() / (
+            #     1e-2 + (1 - goal_mask.float()).mean()
+            # )
+            dist_loss = 0
             # Sample noise to add to actions
             noise = torch.randn(naction.shape, device=device)
 
@@ -145,7 +148,7 @@ def train(
             flow_loss = action_reduce(F.mse_loss(vt, ut, reduction="none"), action_mask)
 
             # Total loss
-            loss = alpha * dist_loss + (1 - alpha) * flow_loss
+            loss = flow_loss
 
             # Optimize
             optimizer.zero_grad()
@@ -160,7 +163,7 @@ def train(
             tepoch.set_postfix(loss=loss_cpu)
             if use_wandb:
                 wandb.log({"total_loss": loss_cpu})
-                wandb.log({"dist_loss": dist_loss.item()})
+                # wandb.log({"dist_loss": dist_loss.item()})
                 wandb.log({"flow_loss": flow_loss.item()})
 
             if i % print_log_freq == 0:
@@ -209,3 +212,5 @@ def train(
                     num_samples=4,
                     use_wandb=use_wandb,
                 )
+            # torch.cuda.empty_cache()
+

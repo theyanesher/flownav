@@ -360,12 +360,12 @@ def visualize_action_distribution(
             traj_alphas=traj_alphas,
             point_alphas=point_alphas,
         )
-        obs_image = to_numpy(batch_viz_obs_images[i])
-        goal_image = to_numpy(batch_viz_goal_images[i])
+        obs_image = to_numpy(batch_viz_obs_images[i]).astype(np.uint8)
+        # goal_image = to_numpy(batch_viz_goal_images[i])
         obs_image = np.moveaxis(obs_image, 0, -1)
-        goal_image = np.moveaxis(goal_image, 0, -1)
+        # goal_image = np.moveaxis(goal_image, 0, -1)
         ax[1].imshow(obs_image)
-        ax[2].imshow(goal_image)
+        # ax[2].imshow(goal_image)
         ax[0].set_title("action predictions")
         ax[1].set_title("observation")
         ax[2].set_title(
