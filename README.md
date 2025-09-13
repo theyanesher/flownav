@@ -48,7 +48,7 @@ To train the model, you need to adjust the in the configuration YAML [`flownav.y
 Then, run the following command:
 
 ```bash
-python train.py -c <YOUR_CONFIG>.yaml
+python train_carla.py -c <YOUR_CONFIG>.yaml
 ```
 
 If you want to use [wandb](https://wandb.ai/) to log the training, you can set the `use_wandb` flag in the configuration YAML to `True` and  the `project` and `entity` to your desired project and entity (usually your username). Don't forget to login first:
@@ -61,14 +61,16 @@ wandb login
 
 To test the model, you need to have the model trained. Weights are available in the [latest release](https://github.com/utn-air/flownav/releases). Adjust in the configuration YAML [`flownav.yaml`](flownav/config/flownav.yaml) as:
 
-1) `train` to `False`.
-2) `depth/weights_path` to the DepthAnythingV2 checkpoint path
-2) `load_run` to the path of the desired weights
+- Eval
+    - set `train: false`, `image_log_freq: 1` in config
+    - have to uncomment the `j` variable in `utils.py` to take care of the file save_path
+    - have to set shuffle to false in test_dataloader in `train_carla.py`
+    - make sure to use val2 path
 
 Then, run the following command:
 
 ```bash
-python train.py -c <YOUR_CONFIG>.yaml
+python train_carla.py -c <YOUR_CONFIG>.yaml
 ```
 
 ## 🤖 Deployment
