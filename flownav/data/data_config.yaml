@@ -19,4 +19,4 @@ go_stanford:
   metric_waypoint_spacing: 0.12
 
 carla:
-  metric_waypoint_spacing: 0.2
+  metric_waypoint_spacing: 1

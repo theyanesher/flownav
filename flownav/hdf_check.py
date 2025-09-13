@@ -1,7 +1,7 @@
 import h5py
 import os
 
-path = '/share1/pranjal.paul/carla_flow_data/train/'
+path = '/scratch2/autodp/pranjal.paul/icra/train/'
 files = sorted([os.path.join(path, f) for f in os.listdir(path) if f.endswith(".h5")])
 
 def get_data(i, files=files):

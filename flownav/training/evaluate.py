@@ -31,10 +31,10 @@ def evaluate(
     project_folder: str,
     epoch: int,
     print_log_freq: int = 100,
-    wandb_log_freq: int = 10,
-    image_log_freq: int = 1000,
+    wandb_log_freq: int = 1,
+    image_log_freq: int = 1,
     num_images_log: int = 8,
-    eval_fraction: float = 0.25,
+    eval_fraction: float = 1,
     use_wandb: bool = True,
 ):
     # Clip goal mask probability
@@ -221,8 +221,9 @@ def evaluate(
 
                 if use_wandb and i % wandb_log_freq == 0 and wandb_log_freq != 0:
                     wandb.log(data_log, commit=True)
-
+            # print('image_log_freq:', image_log_freq, 'i:', i)
             if image_log_freq != 0 and i % image_log_freq == 0:
+                # print('image_logging')
                 visualize_action_distribution(
                     ema_model=ema_model,
                     batch_obs_images=batch_obs_images,
@@ -233,7 +234,7 @@ def evaluate(
                     batch_distance_labels=distance,
                     batch_goal_pos=goal_pos,
                     device=device,
-                    eval_type="train",
+                    eval_type="test",
                     project_folder=project_folder,
                     epoch=epoch,
                     num_images_log=num_images_log,

@@ -243,7 +243,8 @@ def model_output(
         "gc_distance": gc_distance,
     }
 
-
+# global j
+# j=0
 def visualize_action_distribution(
     ema_model: nn.Module,
     batch_obs_images: torch.Tensor,
@@ -262,6 +263,9 @@ def visualize_action_distribution(
     use_wandb: bool = True,
 ) -> None:
     # Create visualization directory
+    # global j
+    # j+=1
+    # print(j+1)
     visualize_path = os.path.join(
         project_folder,
         "visualize",
@@ -329,6 +333,8 @@ def visualize_action_distribution(
 
     # Plot
     for i in range(num_images_log):
+        # j+=1
+        # breakpoint()
         fig, ax = plt.subplots(1, 3)
         uc_actions = uc_actions_list[i]
         gc_actions = gc_actions_list[i]
@@ -376,6 +382,7 @@ def visualize_action_distribution(
         fig.set_size_inches(18.5, 10.5)
         save_path = os.path.join(visualize_path, f"sample_{i}.png")
         plt.savefig(save_path)
+        # print("im here",j)
         wandb_list.append(wandb.Image(save_path))
         plt.close(fig)
 

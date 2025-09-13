@@ -41,7 +41,7 @@ def main(config: dict) -> None:
     device = torch.device(
         f"cuda:{first_gpu_id}" if torch.cuda.is_available() else "cpu"
     )
-
+    print(f"Using device: {device}")
     # Set seed for reproducibility
     if "seed" in config:
         np.random.seed(config["seed"])

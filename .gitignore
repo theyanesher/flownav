@@ -1,5 +1,7 @@
 train/logs/*
+logs/*
 train/datasets/*
+wandb/*
 train/vint_train/data/data_splits/*
 train/wandb/*
 train/gnm_dataset/*
@@ -13,6 +15,7 @@ vint_data/
 *.pth
 *.mp4
 *.gif
+*.pth
 
 deployment/model_weights/*
 deployment/topomaps/*

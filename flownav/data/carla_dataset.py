@@ -26,6 +26,7 @@ class carla_Dataset(Dataset):
         return len(self.files)
 
     def __getitem__(self, idx):
+        # print('get item',idx)
         with h5py.File(self.files[idx], "r") as f:
             rgb_temporal = torch.from_numpy(f["rgb"][:]).permute(0, 3, 1, 2).float()
 
