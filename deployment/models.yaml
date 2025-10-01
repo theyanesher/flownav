@@ -1,0 +1,3 @@
+nomad: 
+  config_path: "/home/theyanesh.er/flownav/flownav/config/flownav.yaml"
+  ckpt_path: "/home/theyanesh.er/flownav/latest.pth"

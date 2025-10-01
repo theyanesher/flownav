@@ -44,7 +44,7 @@ depth:
   pool_dim: 64
   out_dim: 
     vits: 384
-  weights_path: <DEPTH_ANYTHING_WEIGHTS_PATH>
+  weights_path: /home/theyanesh.er/flownav/depth_anything_v2_vits.pth
 
 # mask 
 goal_mask_prob: 0.5
