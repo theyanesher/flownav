@@ -121,8 +121,6 @@ def load_model(model_path, config, device=torch.device("cuda")):
     print(">> Missing keys in checkpoint:", missing)
     print(">> Unexpected keys in checkpoint:", unexpected)
 
-
-
     latest_checkpoint = torch.load(model_path, map_location=device)
     # print('latest check',latest_checkpoint.keys())
     if "model" in latest_checkpoint:
@@ -426,4 +424,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(f"Using {device}")
     main(args)
-
