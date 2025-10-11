@@ -1,7 +1,6 @@
 import argparse
 import os
 import time
-
 import click
 import numpy as np
 import torch
@@ -15,8 +14,9 @@ from torch.utils.data import ConcatDataset, DataLoader
 from torchvision import transforms
 from flownav.data.vint_dataset import ViNT_Dataset
 from flownav.data.carla_dataset import carla_Dataset
+from flownav.data.nuscenes_dataloader import NuScenesTemporalDataset
 from flownav.models.nomad import DenseNetwork, NoMaD
-from flownav.models.nomad_vint import NoMaD_ViNT, replace_bn_with_gn
+from flownav.models.nomad_bev import NoMaD_ViNT, replace_bn_with_gn
 from flownav.training.loop import main_loop
 from warmup_scheduler import GradualWarmupScheduler
 
@@ -51,6 +51,7 @@ def main(config: dict) -> None:
     # Set up the transformation for the dataset (from ImageNet)
     transform = transforms.Compose(
         [
+            transforms.Resize((224, 400)),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
