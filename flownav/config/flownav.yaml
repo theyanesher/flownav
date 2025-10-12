@@ -5,11 +5,11 @@ run_name: flownav
 # training setup
 use_wandb: True # set to false if you don't want to log to wandb
 train: True
-batch_size: 16
-eval_batch_size: 16
+batch_size: 8
+eval_batch_size: 8
 epochs: 20
 gpu_ids: [0]
-num_workers: 8
+num_workers: 2
 lr: 1e-4
 optimizer: adamw
 clipping: False
@@ -71,8 +71,8 @@ learn_angle: False
 
 # dataset specific parameters
 image_size: [400, 224] # width, height
-nuscenes_path: /share1/ad_dataset/nuscenes
-bev_path: home/AutoDP/theyanesh.er/simple_bev/checkpoints/8x5_5e-4_rgb12_22:43:46
+nuscenes_path: /scratch2/autodp/pranjal.paul/nuscenes-full/nuscenes # /share1/ad_dataset/nuscenes
+bev_path: /theyanesh.er/simple_bev/checkpoints/8x5_5e-4_rgb12_22:43:46 # /home/theyanesh.er/flownav/flownav/models/bev/8x5_5e-4_rgb12_22:43:46
 datasets:
   # recon:
   #   data_folder: /home/<username>/nomad_dataset/recon

@@ -95,13 +95,10 @@ def train(
             distance = data['distance'] # 8
             # action_mask = True
             intrins = data['intrinsics']
-            rots = data['context_rots']
-            trans = data['context_trans']
-            action_mask = (
-                (distance < 20)
-                and (distance > 3)
-            )
-            action_mask = torch.as_tensor(action_mask, dtype=torch.float32).to(device)
+            rots = data['rots']
+            trans = data['trans']
+            # breakpoint()
+            action_mask = data['action_mask'].to(device)
             # Split the observation image into RGB channels
             # obs_image = obs_image.view(obs_image.size(0), -1,obs_image.size(3), obs_image.size(4)) # (taken care in dataset)
             # breakpoint()

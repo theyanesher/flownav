@@ -5,6 +5,7 @@ from pyquaternion import Quaternion
 from PIL import Image
 import numpy as np
 import os
+import torchvision.transforms.functional as TF
 
 
 class NuScenesTemporalDataset(Dataset):
@@ -17,53 +18,50 @@ class NuScenesTemporalDataset(Dataset):
                  transform=None,
                  include_goal_image=True,
                  resize_hw=(224, 400)):
-        """
-        Returns for each valid timestep:
-          - context + current images (total context_len+1)
-          - their intrinsics, rotations, and translations
-          - future `future_len` odometry steps
-          - (optional) goal image and its intrinsics
-        """
+
         self.nusc = NuScenes(version=version, dataroot=nusc_root, verbose=False)
+
         self.camera = camera
         self.context_len = context_len
         self.future_len = future_len
         self.transform = transform
         self.include_goal_image = include_goal_image
-        self.resize_hw = resize_hw  # (H, W)
+        self.resize_hw = resize_hw
 
-        self.scene_sample_tokens = []
         self.valid_indices = []
 
-        # --- Collect samples from all scenes ---
-        for scene in self.nusc.scene:
+        # --- Instead of storing all samples, just store metadata ---
+        print("Indexing valid samples...")
+        for scene_idx, scene in enumerate(self.nusc.scene):
             first_token = scene['first_sample_token']
             sample = self.nusc.get('sample', first_token)
-            scene_samples = []
 
+            # Keep only tokens, not entire scene data
+            tokens = []
             while True:
-                scene_samples.append(sample['token'])
+                tokens.append(sample['token'])
                 if sample['next'] == '':
                     break
                 sample = self.nusc.get('sample', sample['next'])
 
-            # Only consider long enough trajectories
-            if len(scene_samples) > self.context_len + self.future_len:
-                self.scene_sample_tokens.append(scene_samples)
+            # Build valid sample indices on the fly
+            if len(tokens) > self.context_len + self.future_len:
+                for i in range(self.context_len, len(tokens) - self.future_len - 1):
+                    self.valid_indices.append((scene_idx, i, tokens))
 
-        # --- Create valid (scene_idx, local_idx) pairs ---
-        for s_idx, scene_tokens in enumerate(self.scene_sample_tokens):
-            for i in range(self.context_len, len(scene_tokens) - self.future_len - 1):
-                self.valid_indices.append((s_idx, i))
+            # ✅ Free memory as we move scene to scene
+            del tokens
+            del sample
+            del scene
+
+        print(f"Total valid indices: {len(self.valid_indices)}")
+
 
     def __len__(self):
         return len(self.valid_indices)
 
     def _get_image_intrin_extrin(self, sample_token):
-        """
-        Loads image, intrinsics, rotation, translation for given sample.
-        Applies resize adjustment to intrinsics.
-        """
+     
         sample = self.nusc.get('sample', sample_token)
         cam_data = self.nusc.get('sample_data', sample['data'][self.camera])
         img_path = os.path.join(self.nusc.dataroot, cam_data['filename'])
@@ -76,7 +74,10 @@ class NuScenesTemporalDataset(Dataset):
         rot = torch.tensor(Quaternion(calib['rotation']).rotation_matrix, dtype=torch.float32)  # [3,3]
         trans = torch.tensor(calib['translation'], dtype=torch.float32)  # [3]
 
-        # --- Resize intrinsics based on image transform ---
+        # --- Convert to tensor first ---
+        img = TF.to_tensor(img)  # shape: [3, H, W], float32 in [0,1]
+
+        # --- Resize intrinsics based on desired size ---
         new_h, new_w = self.resize_hw
         sx = new_w / orig_w
         sy = new_h / orig_h
@@ -85,11 +86,15 @@ class NuScenesTemporalDataset(Dataset):
         intrinsics[1, 1] *= sy  # fy
         intrinsics[1, 2] *= sy  # cy
 
+        # --- Resize the tensor image ---
+        img = TF.resize(img, size=self.resize_hw, antialias=True)
+
+        # --- Apply any additional transform (e.g., normalization) ---
         if self.transform:
             img = self.transform(img)
 
         return img, torch.tensor(intrinsics, dtype=torch.float32), rot, trans
-
+    
     def _get_odom(self, sample_token):
         """Extract (x, y, yaw) from ego pose."""
         sample = self.nusc.get('sample', sample_token)
@@ -101,29 +106,28 @@ class NuScenesTemporalDataset(Dataset):
         return np.array([x, y], dtype=np.float32)
 
     def __getitem__(self, idx):
-        scene_idx, local_idx = self.valid_indices[idx]
-        scene_tokens = self.scene_sample_tokens[scene_idx]
+        _, local_idx, tokens = self.valid_indices[idx]
+        scene_tokens = tokens  # ✅ use the passed token list
 
         # --- Context + Current images ---
-        context_imgs, context_intrins, context_rots, context_trans = [], [], [], []
+        context_imgs = []
         for j in range(local_idx - self.context_len, local_idx + 1):  # include current
             token = scene_tokens[j]
             img, intrin, rot, trans = self._get_image_intrin_extrin(token)
             context_imgs.append(img)
-            context_intrins.append(intrin)
-            context_rots.append(rot)
-            context_trans.append(trans)
+            # context_intrins.append(intrin)
+            # context_rots.append(rot)
+            # context_trans.append(trans)
 
-        context_imgs = torch.stack(context_imgs, dim=0)         # [context_len+1, 3, H, W]
-        context_intrins = torch.stack(context_intrins, dim=0)   # [context_len+1, 3, 3]
-        context_rots = torch.stack(context_rots, dim=0)         # [context_len+1, 3, 3]
-        context_trans = torch.stack(context_trans, dim=0)       # [context_len+1, 3]
+        context_imgs = torch.stack(context_imgs, dim=0)
+        # context_intrins = torch.stack(context_intrins, dim=0)
+        # context_rots = torch.stack(context_rots, dim=0)
+        # context_trans = torch.stack(context_trans, dim=0)
 
-        # --- The last one in context is current ---
-        current_img = context_imgs[-1]
-        current_intrin = context_intrins[-1]
-        current_rot = context_rots[-1]
-        current_trans = context_trans[-1]
+        # # current_img = context_imgs[-1]
+        # current_intrin = context_intrins[-1]
+        # current_rot = context_rots[-1]
+        # current_trans = context_trans[-1]
 
         # --- Future odometry ---
         future_tokens = scene_tokens[local_idx : local_idx + self.future_len]
@@ -132,25 +136,33 @@ class NuScenesTemporalDataset(Dataset):
         relative_odom = future_odom - future_odom[0]
 
         # --- Goal image ---
-        goal_img, goal_intrin, goal_rot, goal_trans = None, None, None, None
-        if self.include_goal_image and (local_idx + self.future_len < len(scene_tokens)):
-            goal_img, goal_intrin, goal_rot, goal_trans = self._get_image_intrin_extrin(
-                scene_tokens[local_idx + self.future_len]
-            )
+        # goal_img, goal_intrin, goal_rot, goal_trans = None, None, None, None
+        # if self.include_goal_image and (local_idx + self.future_len < len(scene_tokens)):
+        #     goal_img, goal_intrin, goal_rot, goal_trans = self._get_image_intrin_extrin(
+        #         scene_tokens[local_idx + self.future_len]
+        #     )
 
-        # --- Repeat intrinsics 6× for uniform shape ---
-        repeated_intrin = torch.stack([current_intrin] * (self.context_len + 1), dim=0)
+        repeated_intrin = torch.stack([intrin] * (6), dim=0)
+        repeated_rots = torch.stack([rot] * (6), dim=0)
+        repeated_trans = torch.stack([trans] * (6), dim=0)
+        distance = torch.as_tensor(relative_odom.shape[0], dtype=torch.float32)
+        action_mask = (
+            (distance < 20)
+            and (distance > 3)
+        )
 
         return {
-            "current_img": current_img,            # [3, H, W]
-            "context_imgs": torch.as_tensor(context_imgs, dtype=torch.float32),          # [context_len+1, 3, H, W]
-            "future_odom": torch.as_tensor(relative_odom, dtype=torch.float32),          # [future_len, 3]
-            "goal_img": goal_img,                  # [3, H, W] or None
-            "intrinsics": torch.as_tensor(repeated_intrin, dtype=torch.float32),         # [6, 3, 3]
-            "context_intrins": context_intrins,    # [6, 3, 3]
-            "context_rots": torch.as_tensor(context_rots, dtype=torch.float32),          # [6, 3, 3]
-            "context_trans": torch.as_tensor(context_trans, dtype=torch.float32),        # [6, 3]
-            "distance": torch.as_tensor(relative_odom.shape[0], dtype=torch.float32),
-            "scene_index": scene_idx,
-            "sample_index": local_idx
+            # "current_img": current_img,
+            "context_imgs": context_imgs,
+            "future_odom": relative_odom,
+            # "goal_img": goal_img,
+            "intrinsics": repeated_intrin,
+            # "current_intrins": intrin,
+            "rots": repeated_rots,
+            "trans": repeated_trans,
+            "distance": distance,
+            # "scene_index": scene_idx,
+            # "sample_index": local_idx,
+            "action_mask": torch.as_tensor(action_mask, dtype=torch.float32),
         }
+
