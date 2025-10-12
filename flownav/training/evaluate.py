@@ -278,7 +278,7 @@ def evaluate(
                     rots = rots,
                     trans = trans,
                     device=device,
-                    eval_type="eval",
+                    eval_type="train",
                     project_folder=project_folder,
                     epoch=epoch,
                     num_images_log=num_images_log,

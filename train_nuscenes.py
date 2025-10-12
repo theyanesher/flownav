@@ -74,9 +74,11 @@ def main(config: dict) -> None:
     #                     test_dataloaders[dataset_type] = {}
     #                 test_dataloaders[dataset_type] = dataset
 
+
+
     train_dataset = NuScenesTemporalDataset(
-        nusc_root='/share1/ad_dataset/nuscenes',
-        version='v1.0-mini',
+        nusc_root=config["nuscenes_path"],
+        version='v1.0-trainval',
         camera='CAM_FRONT',
         context_len=5,
         future_len=8,
@@ -101,7 +103,7 @@ def main(config: dict) -> None:
         )
     )
     test_dataset = NuScenesTemporalDataset(
-        nusc_root='/share1/ad_dataset/nuscenes',
+        nusc_root=config["nuscenes_path"],
         version='v1.0-mini',
         camera='CAM_FRONT',
         context_len=5,
@@ -142,6 +144,7 @@ def main(config: dict) -> None:
         mha_num_attention_layers=config["mha_num_attention_layers"],
         mha_ff_dim_factor=config["mha_ff_dim_factor"],
         # depth_cfg=config["depth"],
+        bev_path=config["bev_path"],
     )
     vision_encoder = replace_bn_with_gn(vision_encoder)
     noise_pred_net = ConditionalUnet1D(

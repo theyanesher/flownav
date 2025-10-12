@@ -1,15 +1,15 @@
 project_name: flownav
-entity: <YOUR ENTITY>
+entity: theyanesher-iit-kharagpur
 run_name: flownav
 
 # training setup
-use_wandb: False # set to false if you don't want to log to wandb
+use_wandb: True # set to false if you don't want to log to wandb
 train: True
-batch_size: 1
-eval_batch_size: 1
+batch_size: 16
+eval_batch_size: 16
 epochs: 20
 gpu_ids: [0]
-num_workers: 4
+num_workers: 8
 lr: 1e-4
 optimizer: adamw
 clipping: False
@@ -70,7 +70,9 @@ len_traj_pred: 8
 learn_angle: False
 
 # dataset specific parameters
-image_size: [96, 96] # width, height
+image_size: [400, 224] # width, height
+nuscenes_path: /share1/ad_dataset/nuscenes
+bev_path: home/AutoDP/theyanesh.er/simple_bev/checkpoints/8x5_5e-4_rgb12_22:43:46
 datasets:
   # recon:
   #   data_folder: /home/<username>/nomad_dataset/recon
@@ -121,6 +123,6 @@ print_log_freq: 500 # in iterations
 image_log_freq: 1000 #0 # in iterations
 num_images_log: 5 #0 
 pairwise_test_freq: 0 # in epochs
-eval_fraction: 0.01
+eval_fraction: 0.1
 wandb_log_freq: 10 # in iterations
 eval_freq: 1 # in epochs
