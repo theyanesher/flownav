@@ -9,7 +9,7 @@ from flownav.models.action_encoder import ActionEncoder
 from flownav.models.attention import PositionalEncoding
 from flownav.models.bev.segnet import Segnet
 from flownav.models.bev.saverloader import load
-from flownav.models.bev.utils import utils
+from flownav.models.bev.utils import basic, geom, vox
 import numpy as np
 from dataclasses import asdict, dataclass
 
@@ -104,16 +104,19 @@ class NoMaD_ViNT(nn.Module):
         # Simple-BEV
         Z, Y, X = 200, 8, 200
         self.bev_encoder = Segnet(Z, Y, X)
-        self.bev_encoder.o(device='cuda')
-        _ = load(bev_path, self.bev_encoder.module)
-        self.bev_encoder.eval
+        self.bev_encoder.to(device='cuda')
+        _ = load(bev_path, self.bev_encoder)
+        self.bev_encoder.eval()
         print("Loaded BEV encoder from:", bev_path)
+        # Freeze BEV encoder weights
+        for param in self.bev_encoder.parameters():
+            param.requires_grad = False
         # self.compress_bev_enc = nn.Sequential(
         #     nn.AdaptiveAvgPool2d((1, 1)),
         #     nn.Flatten(),
         #     nn.Linear(128, self.obs_encoding_size),
         # )
-        self.compress_depth_enc = nn.Sequential(
+        self.compress_bev_enc = nn.Sequential(
             nn.AdaptiveAvgPool2d((8, 8)),      # [1, 128, 200, 200] -> [1, 128, 8, 8]
             nn.Flatten(),                      # [1, 128*8*8]
             nn.Linear(128*8*8, self.obs_encoding_size),
@@ -159,8 +162,8 @@ class NoMaD_ViNT(nn.Module):
         rots = None,
         trans = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        device = obs_img.device
-
+        device = 'cuda'
+        obs_img = obs_img.to(device)
         # Initialize the goal encoding
         goal_encoding = torch.zeros((obs_img.size()[0], 1, self.goal_encoding_size)).to(
             device
@@ -175,7 +178,7 @@ class NoMaD_ViNT(nn.Module):
             goal_pos_encoding = goal_pos_encoding.unsqueeze(1)
         # Get the goal encoding
          # concatenate the obs image/context and goal image --> non image goal?
-        obsgoal_img = obs_img[:, 3 * self.context_size :, :, :].squeeze(1)
+        obsgoal_img = obs_img[:, 3 * self.context_size :, :, :].squeeze(1).to(device)
         obsgoal_encoding = self.goal_encoder.extract_features(
             obsgoal_img
         )  # get encoding of this img
@@ -206,8 +209,8 @@ class NoMaD_ViNT(nn.Module):
         # if len(depth_encoding.shape) == 2:
         #     depth_encoding = depth_encoding.unsqueeze(1)
         # # assert depth_encoding.shape[2] == self.goal_encoding_size
-
-        bev = bev_infer(self.bev_encoder, obs_img[:, 3 * self.context_size :, :, :].squeeze(1), intrins, rots, trans, device=device, config=bev_config)
+        # breakpoint()
+        bev = bev_infer(self.bev_encoder, obs_img[:, 3 * self.context_size :, :, :], intrins, rots, trans, device=device, config=bev_config)
         bev = self.compress_bev_enc(bev)
         bev = bev.unsqueeze(1)
         assert bev.shape[2] == self.obs_encoding_size
@@ -310,21 +313,24 @@ def bev_infer(model, rgb_camXs, intrins, rots, trans, device='cuda', config = be
     rgb_camXs = rgb_camXs - 0.5
     Z, Y, X = 200, 8, 200
     B = rgb_camXs.shape[0]
-    __p = lambda x: utils.basic.pack_seqdim(x, B)
-    __u = lambda x: utils.basic.unpack_seqdim(x, B)
-
-    mag = torch.norm(xyz_velo0, dim=2)
-    xyz_velo0 = xyz_velo0[:,mag[0]>1]
+    __p = lambda x: basic.pack_seqdim(x, B)
+    __u = lambda x: basic.unpack_seqdim(x, B)
+    imgs_0 = torch.zeros_like(rgb_camXs).unsqueeze(1)
+    imgs_2 = torch.zeros_like(rgb_camXs).unsqueeze(1).repeat(1, 4, 1, 1, 1)
+    # breakpoint()
+    rgb_camXs = torch.cat([imgs_0, rgb_camXs.unsqueeze(1), imgs_2], dim=1).to(device)
+    # mag = torch.norm(xyz_velo0, dim=2)
+    # xyz_velo0 = xyz_velo0[:,mag[0]>1]
     # xyz_velo0_bak = xyz_velo0.clone()
 
-    intrins_ = __p(intrins)
-    pix_T_cams_ = utils.geom.merge_intrinsics(*utils.geom.split_intrinsics(intrins_)).to(device)
-    pix_T_cams = __u(pix_T_cams_)
+    intrins_ = __p(intrins).to(device)
+    pix_T_cams_ = geom.merge_intrinsics(*geom.split_intrinsics(intrins_)).to(device)
+    pix_T_cams = __u(pix_T_cams_).to(device)
 
-    velo_T_cams = utils.geom.merge_rtlist(rots, trans).to(device)
+    velo_T_cams = geom.merge_rtlist(rots, trans).to(device)
     # cams_T_velo = __u(utils.geom.safe_inverse(__p(velo_T_cams)))
     
-    cam0_T_camXs = utils.geom.get_camM_T_camXs(velo_T_cams, ind=0)
+    cam0_T_camXs = geom.get_camM_T_camXs(velo_T_cams, ind=0).to(device)
     # camXs_T_cam0 = __u(utils.geom.safe_inverse(__p(cam0_T_camXs)))
     # cam0_T_camXs_ = __p(cam0_T_camXs)
     # camXs_T_cam0_ = __p(camXs_T_cam0)
@@ -334,7 +340,7 @@ def bev_infer(model, rgb_camXs, intrins, rots, trans, device='cuda', config = be
 
     # lrtlist_cam0 = utils.geom.apply_4x4_to_lrtlist(cams_T_velo[:,0], lrtlist_velo)
 
-    vox_util = utils.vox.Vox_util(
+    vox_util = vox.Vox_util(
         Z, Y, X,
         scene_centroid=config.scene_centroid.to(device),
         bounds=config.bounds,

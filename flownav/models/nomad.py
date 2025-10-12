@@ -1,6 +1,5 @@
 import torch.nn as nn
 
-
 class NoMaD(nn.Module):
     def __init__(self, vision_encoder, noise_pred_net, dist_pred_net):
         super(NoMaD, self).__init__()
@@ -15,6 +14,9 @@ class NoMaD(nn.Module):
                 kwargs["obs_img"],
                 kwargs["goal_img"],
                 input_goal_mask=kwargs["input_goal_mask"],
+                intrins = kwargs["intrins"],
+                rots = kwargs["rots"],
+                trans = kwargs["trans"],
             )
         elif func_name == "noise_pred_net":
             output = self.noise_pred_net(

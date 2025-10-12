@@ -85,29 +85,58 @@ def evaluate(
         colour="blue",
     ) as tepoch:
         for i, data in enumerate(tepoch):
-            (
-                obs_image,
-                goal_image,
-                actions,
-                distance,
-                goal_pos,
-                _,
-                action_mask,
-            ) = data
+            # (
+            #     obs_image,
+            #     goal_image,
+            #     actions,
+            #     distance,
+            #     goal_pos,
+            #     _,
+            #     action_mask,
+            # ) = data
 
-            # Split the observation image into RGB channels
-            obs_images = torch.split(obs_image, 3, dim=1)
-            batch_viz_obs_images = TF.resize(
-                obs_images[-1], VISUALIZATION_IMAGE_SIZE[::-1]
+            # # Split the observation image into RGB channels
+            # obs_images = torch.split(obs_image, 3, dim=1)
+            # batch_viz_obs_images = TF.resize(
+            #     obs_images[-1], VISUALIZATION_IMAGE_SIZE[::-1]
+            # )
+            # # batch_viz_goal_images = TF.resize(
+            # #     goal_image, VISUALIZATION_IMAGE_SIZE[::-1]
+            # # )
+            # batch_viz_goal_images = goal_image
+            # batch_obs_images = [transform(obs) for obs in obs_images]
+            # batch_obs_images = torch.cat(batch_obs_images, dim=1).to(device)
+            # batch_goal_images = goal_image.to(device)
+            # action_mask = action_mask.to(device)
+
+            obs_images = data['context_imgs'] # [1, 6, 3, 224, 400]
+            goal_pos = data['future_odom'][:,-1,:] # [1,8,2] -> [1,2]
+            actions = data['future_odom'] # [1,8,2]
+            # distance = torch.as_tensor(actions.shape[1], dtype=torch.float32) # 8
+            distance = data['distance'] # 8
+            # action_mask = True
+            intrins = data['intrinsics'].to(device)
+            rots = data['context_rots'].to(device)
+            trans = data['context_trans'].to(device)
+
+            action_mask = (
+                (distance < 20)
+                and (distance > 3)
             )
+            action_mask = torch.as_tensor(action_mask, dtype=torch.float32)
+            # Split the observation image into RGB channels
+            # obs_image = obs_image.view(obs_image.size(0), -1,obs_image.size(3), obs_image.size(4)) # (taken care in dataset)
+            # breakpoint()
+            batch_viz_obs_images = obs_images[:,-1] # the current images in batch
+            # )
             # batch_viz_goal_images = TF.resize(
             #     goal_image, VISUALIZATION_IMAGE_SIZE[::-1]
             # )
-            batch_viz_goal_images = goal_image
-            batch_obs_images = [transform(obs) for obs in obs_images]
-            batch_obs_images = torch.cat(batch_obs_images, dim=1).to(device)
-            batch_goal_images = goal_image.to(device)
-            action_mask = action_mask.to(device)
+            batch_viz_goal = goal_pos
+            # batch_obs_images = [transform(obs) for obs in obs_images]
+            x = obs_images.shape
+            batch_obs_images = obs_images.view(x[0], -1, x[3], x[4]) # [1, 18, 224, 400])
+            batch_goal = goal_pos.to(device)
 
             # Get batch size
             B = actions.shape[0]
@@ -125,16 +154,23 @@ def evaluate(
             rand_mask_cond = ema_model(
                 "vision_encoder",
                 obs_img=batch_obs_images,
-                goal_img=batch_goal_images,
+                goal_img=batch_goal,
                 input_goal_mask=rand_goal_mask,
+                intrins = intrins,
+                rots = rots,
+                trans = trans,
             )
+
 
             # Get navigation conditioning
             obsgoal_cond = ema_model(
                 "vision_encoder",
                 obs_img=batch_obs_images,
-                goal_img=batch_goal_images,
+                goal_img=batch_goal,
                 input_goal_mask=no_mask,
+                intrins = intrins,
+                rots = rots,
+                trans = trans,
             )
             obsgoal_cond = obsgoal_cond.flatten(start_dim=1)
 
@@ -142,8 +178,11 @@ def evaluate(
             goal_mask_cond = ema_model(
                 "vision_encoder",
                 obs_img=batch_obs_images,
-                goal_img=batch_goal_images,
+                goal_img=batch_goal,
                 input_goal_mask=goal_mask,
+                intrins = intrins,
+                rots = rots,
+                trans = trans,
             )
 
             # get distance to goal
@@ -198,11 +237,14 @@ def evaluate(
                 losses = compute_losses(
                     ema_model=ema_model,
                     batch_obs_images=batch_obs_images,
-                    batch_goal_images=batch_goal_images,
+                    batch_goal_images=batch_goal,
                     batch_dist_label=distance.to(device),
                     batch_action_label=actions.to(device),
                     device=device,
                     action_mask=action_mask.to(device),
+                    intrins = intrins,
+                    rots = rots,
+                    trans = trans,
                     use_wandb=use_wandb,
                 )
 
@@ -226,14 +268,17 @@ def evaluate(
                 visualize_action_distribution(
                     ema_model=ema_model,
                     batch_obs_images=batch_obs_images,
-                    batch_goal_images=batch_goal_images,
+                    batch_goal_images=batch_goal,
                     batch_viz_obs_images=batch_viz_obs_images,
-                    batch_viz_goal_images=batch_viz_goal_images,
+                    batch_viz_goal_images=batch_viz_goal,
                     batch_action_label=actions,
                     batch_distance_labels=distance,
                     batch_goal_pos=goal_pos,
+                    intrins = intrins,
+                    rots = rots,
+                    trans = trans,
                     device=device,
-                    eval_type="train",
+                    eval_type="eval",
                     project_folder=project_folder,
                     epoch=epoch,
                     num_images_log=num_images_log,

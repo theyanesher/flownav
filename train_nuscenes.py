@@ -19,6 +19,7 @@ from flownav.models.nomad import DenseNetwork, NoMaD
 from flownav.models.nomad_bev import NoMaD_ViNT, replace_bn_with_gn
 from flownav.training.loop import main_loop
 from warmup_scheduler import GradualWarmupScheduler
+import torchvision
 
 def main(config: dict) -> None:
     # Set up the device
@@ -50,28 +51,39 @@ def main(config: dict) -> None:
 
     # Set up the transformation for the dataset (from ImageNet)
     transform = transforms.Compose(
-        [
+        [   
+            torchvision.transforms.ToTensor(),
             transforms.Resize((224, 400)),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
 
     # Load the data
-    train_dataset = []
-    test_dataloaders = {}
-    for dataset_name in config["datasets"]:
-        data_config = config["datasets"][dataset_name]
-        for data_split_type in ["train", "test"]:
-            if data_split_type in data_config:
-                dataset = carla_Dataset(data_folder=data_config[data_split_type])
-                if data_split_type == "train":
-                    train_dataset.append(dataset)
-                else:
-                    dataset_type = f"{dataset_name}_{data_split_type}"
-                    if dataset_type not in test_dataloaders:
-                        test_dataloaders[dataset_type] = {}
-                    test_dataloaders[dataset_type] = dataset
-    train_dataset = ConcatDataset(train_dataset)
+    # train_dataset = []
+    # test_dataloaders = {}
+    # for dataset_name in config["datasets"]:
+    #     data_config = config["datasets"][dataset_name]
+    #     for data_split_type in ["train", "test"]:
+    #         if data_split_type in data_config:
+    #             dataset = carla_Dataset(data_folder=data_config[data_split_type])
+    #             if data_split_type == "train":
+    #                 train_dataset.append(dataset)
+    #             else:
+    #                 dataset_type = f"{dataset_name}_{data_split_type}"
+    #                 if dataset_type not in test_dataloaders:
+    #                     test_dataloaders[dataset_type] = {}
+    #                 test_dataloaders[dataset_type] = dataset
+
+    train_dataset = NuScenesTemporalDataset(
+        nusc_root='/share1/ad_dataset/nuscenes',
+        version='v1.0-mini',
+        camera='CAM_FRONT',
+        context_len=5,
+        future_len=8,
+        transform=transform,
+        include_goal_image=True
+    )
+
     train_loader = DataLoader(
         dataset=train_dataset,
         batch_size=config["batch_size"],
@@ -80,6 +92,7 @@ def main(config: dict) -> None:
         drop_last=False,
         persistent_workers=False,
     )
+
     click.echo(
         click.style(
             f">> Loaded {len(train_dataset)} training samples",
@@ -87,23 +100,39 @@ def main(config: dict) -> None:
             bold=True,
         )
     )
-    if "eval_batch_size" not in config:
-        config["eval_batch_size"] = config["batch_size"]
-    for dataset_type, dataset in test_dataloaders.items():
-        test_dataloaders[dataset_type] = DataLoader(
-            dataset=dataset,
+    test_dataset = NuScenesTemporalDataset(
+        nusc_root='/share1/ad_dataset/nuscenes',
+        version='v1.0-mini',
+        camera='CAM_FRONT',
+        context_len=5,
+        future_len=8,
+        transform=transform,
+        include_goal_image=True
+    )
+    test_dataloaders = DataLoader(
+            dataset=test_dataset,
             batch_size=config["eval_batch_size"],
             shuffle=True,
             num_workers=0,
             drop_last=False,
         )
-        click.echo(
-            click.style(
-                f">> Loaded {len(dataset)} test samples for {dataset_type}",
-                fg="cyan",
-                bold=True,
-            )
-        )
+    # if "eval_batch_size" not in config:
+    #     config["eval_batch_size"] = config["batch_size"]
+    # for dataset_type, dataset in test_dataloaders.items():
+    #     test_dataloaders[dataset_type] = DataLoader(
+    #         dataset=dataset,
+    #         batch_size=config["eval_batch_size"],
+    #         shuffle=True,
+    #         num_workers=0,
+    #         drop_last=False,
+    #     )
+    #     click.echo(
+    #         click.style(
+    #             f">> Loaded {len(dataset)} test samples for {dataset_type}",
+    #             fg="cyan",
+    #             bold=True,
+    #         )
+    #     )
 
     # Create the model
     vision_encoder = NoMaD_ViNT(
@@ -112,7 +141,7 @@ def main(config: dict) -> None:
         mha_num_attention_heads=config["mha_num_attention_heads"],
         mha_num_attention_layers=config["mha_num_attention_layers"],
         mha_ff_dim_factor=config["mha_ff_dim_factor"],
-        depth_cfg=config["depth"],
+        # depth_cfg=config["depth"],
     )
     vision_encoder = replace_bn_with_gn(vision_encoder)
     noise_pred_net = ConditionalUnet1D(
@@ -174,24 +203,24 @@ def main(config: dict) -> None:
             scheduler.load_state_dict(latest_checkpoint["scheduler"].state_dict())
 
     # Load Depth-Anything pre-trained weights
-    checkpoint = torch.load(
-        config["depth"]["weights_path"],
-        map_location=device,
-    )
-    saved_state_dict = (
-        checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
-    )
-    updated_state_dict = {
-        k.replace("pretrained.", ""): v
-        for k, v in saved_state_dict.items()
-        if "pretrained" in k
-    }
-    new_state_dict = {
-        k: v
-        for k, v in updated_state_dict.items()
-        if k in model.vision_encoder.depth_encoder.state_dict()
-    }
-    model.vision_encoder.depth_encoder.load_state_dict(new_state_dict, strict=False)
+    # checkpoint = torch.load(
+    #     config["depth"]["weights_path"],
+    #     map_location=device,
+    # )
+    # saved_state_dict = (
+    #     checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
+    # )
+    # updated_state_dict = {
+    #     k.replace("pretrained.", ""): v
+    #     for k, v in saved_state_dict.items()
+    #     if "pretrained" in k
+    # }
+    # new_state_dict = {
+    #     k: v
+    #     for k, v in updated_state_dict.items()
+    #     if k in model.vision_encoder.depth_encoder.state_dict()
+    # }
+    # model.vision_encoder.depth_encoder.load_state_dict(new_state_dict, strict=False)
 
     # Multi-GPU setup
     if len(config["gpu_ids"]) > 1:

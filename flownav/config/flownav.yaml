@@ -3,11 +3,11 @@ entity: <YOUR ENTITY>
 run_name: flownav
 
 # training setup
-use_wandb: True # set to false if you don't want to log to wandb
+use_wandb: False # set to false if you don't want to log to wandb
 train: True
 batch_size: 1
 eval_batch_size: 1
-epochs: 30
+epochs: 20
 gpu_ids: [0]
 num_workers: 4
 lr: 1e-4
@@ -54,7 +54,7 @@ normalize: True
 
 # context
 context_type: temporal
-context_size: 4 # 5
+context_size: 5 # 5
 alpha: 1e-4
 
 # distance bounds for distance and action and distance predictions 
@@ -66,7 +66,7 @@ action:
   max_dist_cat: 20
 
 # action output params
-len_traj_pred: 32
+len_traj_pred: 8
 learn_angle: False
 
 # dataset specific parameters
@@ -119,8 +119,8 @@ datasets:
 ## =0 turns off
 print_log_freq: 500 # in iterations
 image_log_freq: 1000 #0 # in iterations
-num_images_log: 8 #0 
+num_images_log: 5 #0 
 pairwise_test_freq: 0 # in epochs
-eval_fraction: 0.25
+eval_fraction: 0.01
 wandb_log_freq: 10 # in iterations
 eval_freq: 1 # in epochs

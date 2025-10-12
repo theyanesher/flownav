@@ -41,7 +41,7 @@ def action_reduce(
     # Reduce over non-batch dimensions to get loss per batch element
     while unreduced_loss.dim() > 1:
         unreduced_loss = unreduced_loss.mean(dim=-1)
-    assert unreduced_loss.shape == action_mask.shape, (
+    assert unreduced_loss.shape == action_mask.shape or action_mask.numel() == 1, (
         f"{unreduced_loss.shape} != {action_mask.shape}"
     )
     return (unreduced_loss * action_mask).mean() / (action_mask.mean() + 1e-2)
@@ -55,6 +55,9 @@ def compute_losses(
     batch_action_label: torch.Tensor,
     device: torch.device,
     action_mask: torch.Tensor,
+    intrins: torch.Tensor,
+    rots: torch.Tensor ,
+    trans: torch.Tensor,
     use_wandb: bool,
 ) -> dict[str, torch.Tensor]:
     # Get pred horizon and action dimension
@@ -68,6 +71,9 @@ def compute_losses(
         batch_goal_images=batch_goal_images,
         pred_horizon=pred_horizon,
         action_dim=action_dim,
+        intrins = intrins,
+        rots = rots,
+        trans = trans,
         num_samples=1,
         device=device,
         use_wandb=use_wandb,
@@ -168,6 +174,9 @@ def model_output(
     batch_goal_images: torch.Tensor,
     pred_horizon: int,
     action_dim: int,
+    intrins: torch.Tensor,
+    rots: torch.Tensor ,
+    trans: torch.Tensor,
     num_samples: int,
     device: torch.device,
     use_wandb: bool,
@@ -179,6 +188,9 @@ def model_output(
         obs_img=batch_obs_images,
         goal_img=batch_goal_images,
         input_goal_mask=goal_mask,
+        intrins = intrins,
+        rots = rots,
+        trans = trans,
     )
     obs_cond = obs_cond.repeat_interleave(num_samples, dim=0)
 
@@ -189,6 +201,9 @@ def model_output(
         obs_img=batch_obs_images,
         goal_img=batch_goal_images,
         input_goal_mask=no_mask,
+        intrins = intrins,
+        rots = rots,
+        trans = trans,
     )
     obsgoal_cond = obsgoal_cond.repeat_interleave(num_samples, dim=0)
 
@@ -253,6 +268,9 @@ def visualize_action_distribution(
     batch_action_label: torch.Tensor,
     batch_distance_labels: torch.Tensor,
     batch_goal_pos: torch.Tensor,
+    intrins: torch.Tensor,
+    rots: torch.Tensor ,
+    trans: torch.Tensor,
     device: torch.device,
     eval_type: str,
     project_folder: str,
@@ -306,6 +324,9 @@ def visualize_action_distribution(
             batch_goal_images=goal,
             pred_horizon=pred_horizon,
             action_dim=action_dim,
+            intrins = intrins,
+            rots = rots,
+            trans = trans,
             num_samples=num_samples,
             device=device,
             use_wandb=use_wandb,

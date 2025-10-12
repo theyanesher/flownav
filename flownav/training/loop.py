@@ -10,7 +10,7 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from flownav.training.evaluate import evaluate
-from flownav.training.train import train
+from flownav.training.train_bev import train
 
 
 def main_loop(
@@ -96,7 +96,7 @@ def main_loop(
                         fg="blue",
                     )
                 )
-                loader = test_dataloaders[dataset_type]
+                loader = test_dataloaders
                 evaluate(
                     eval_type=dataset_type,
                     ema_model=ema_model,

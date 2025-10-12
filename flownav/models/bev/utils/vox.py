@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-import utils.geom
+from flownav.models.bev.utils import *
 
 class Vox_util(object):
     def __init__(self, Z, Y, X, scene_centroid, bounds, pad=None, assert_cube=False):
@@ -54,7 +54,7 @@ class Vox_util(object):
         device = xyz.device
         assert(C==3)
         mem_T_ref = self.get_mem_T_ref(B, Z, Y, X, assert_cube=assert_cube, device=device)
-        xyz = utils.geom.apply_4x4(mem_T_ref, xyz)
+        xyz = geom.apply_4x4(mem_T_ref, xyz)
         return xyz
 
     def Mem2Ref(self, xyz_mem, Z, Y, X, assert_cube=False):
@@ -62,7 +62,7 @@ class Vox_util(object):
         # transforms mem coordinates into ref coordinates
         B, N, C = list(xyz_mem.shape)
         ref_T_mem = self.get_ref_T_mem(B, Z, Y, X, assert_cube=assert_cube, device=xyz_mem.device)
-        xyz_ref = utils.geom.apply_4x4(ref_T_mem, xyz_mem)
+        xyz_ref = geom.apply_4x4(ref_T_mem, xyz_mem)
         return xyz_ref
 
     def get_mem_T_ref(self, B, Z, Y, X, assert_cube=False, device='cuda'):
@@ -86,18 +86,18 @@ class Vox_util(object):
 
         # translation
         # (this makes the left edge of the leftmost voxel correspond to XMIN)
-        center_T_ref = utils.geom.eye_4x4(B, device=device)
+        center_T_ref = geom.eye_4x4(B, device=device)
         center_T_ref[:,0,3] = -self.XMIN-vox_size_X/2.0
         center_T_ref[:,1,3] = -self.YMIN-vox_size_Y/2.0
         center_T_ref[:,2,3] = -self.ZMIN-vox_size_Z/2.0
 
         # scaling
         # (this makes the right edge of the rightmost voxel correspond to XMAX)
-        mem_T_center = utils.geom.eye_4x4(B, device=device)
+        mem_T_center = geom.eye_4x4(B, device=device)
         mem_T_center[:,0,0] = 1./vox_size_X
         mem_T_center[:,1,1] = 1./vox_size_Y
         mem_T_center[:,2,2] = 1./vox_size_Z
-        mem_T_ref = utils.basic.matmul2(mem_T_center, center_T_ref)
+        mem_T_ref = basic.matmul2(mem_T_center, center_T_ref)
 
         return mem_T_ref
 
@@ -300,13 +300,13 @@ class Vox_util(object):
         B, C, H, W = list(rgb_camB.shape)
 
         if xyz_camA is None:
-            xyz_memA = utils.basic.gridcloud3d(B, Z, Y, X, norm=False, device=pixB_T_camA.device)
+            xyz_memA = basic.gridcloud3d(B, Z, Y, X, norm=False, device=pixB_T_camA.device)
             xyz_camA = self.Mem2Ref(xyz_memA, Z, Y, X, assert_cube=assert_cube)
 
-        xyz_camB = utils.geom.apply_4x4(camB_T_camA, xyz_camA)
+        xyz_camB = geom.apply_4x4(camB_T_camA, xyz_camA)
         z = xyz_camB[:,:,2]
 
-        xyz_pixB = utils.geom.apply_4x4(pixB_T_camA, xyz_camA)
+        xyz_pixB = geom.apply_4x4(pixB_T_camA, xyz_camA)
         normalizer = torch.unsqueeze(xyz_pixB[:,:,2], 2)
         EPS=1e-6
         # z = xyz_pixB[:,:,2]
@@ -325,10 +325,10 @@ class Vox_util(object):
             # handwritten version
             values = torch.zeros([B, C, Z*Y*X], dtype=torch.float32)
             for b in list(range(B)):
-                values[b] = utils.samp.bilinear_sample_single(rgb_camB[b], x_pixB[b], y_pixB[b])
+                values[b] = samp.bilinear_sample_single(rgb_camB[b], x_pixB[b], y_pixB[b])
         else:
             # native pytorch version
-            y_pixB, x_pixB = utils.basic.normalize_grid2d(y, x, H, W)
+            y_pixB, x_pixB = basic.normalize_grid2d(y, x, H, W)
             # since we want a 3d output, we need 5d tensors
             z_pixB = torch.zeros_like(x)
             xyz_pixB = torch.stack([x_pixB, y_pixB, z_pixB], axis=2)
@@ -354,17 +354,17 @@ class Vox_util(object):
         
         B, C, D, H, W = list(rgb_tileB.shape)
 
-        xyz_memA = utils.basic.gridcloud3d(B, Z, Y, X, norm=False, device=pixB_T_camA.device)
+        xyz_memA = basic.gridcloud3d(B, Z, Y, X, norm=False, device=pixB_T_camA.device)
 
         xyz_camA = self.Mem2Ref(xyz_memA, Z, Y, X, assert_cube=assert_cube)
 
-        xyz_camB = utils.geom.apply_4x4(camB_T_camA, xyz_camA)
+        xyz_camB = geom.apply_4x4(camB_T_camA, xyz_camA)
         z_camB = xyz_camB[:,:,2]
 
         # rgb_tileB has depth=DMIN in tile 0, and depth=DMAX in tile D-1
         z_tileB = (D-1.0) * (z_camB-float(DMIN)) / float(DMAX-DMIN)
 
-        xyz_pixB = utils.geom.apply_4x4(pixB_T_camA, xyz_camA)
+        xyz_pixB = geom.apply_4x4(pixB_T_camA, xyz_camA)
         normalizer = torch.unsqueeze(xyz_pixB[:,:,2], 2)
         EPS=1e-6
         # z = xyz_pixB[:,:,2]
@@ -379,7 +379,7 @@ class Vox_util(object):
         z_valid = (z_camB>0.0).bool()
         valid_mem = (x_valid & y_valid & z_valid).reshape(B, 1, Z, Y, X).float()
 
-        z_tileB, y_pixB, x_pixB = utils.basic.normalize_grid3d(z_tileB, y, x, D, H, W)
+        z_tileB, y_pixB, x_pixB = basic.normalize_grid3d(z_tileB, y, x, D, H, W)
         xyz_pixB = torch.stack([x_pixB, y_pixB, z_tileB], axis=2)
         xyz_pixB = torch.reshape(xyz_pixB, [B, Z, Y, X, 3])
         values = F.grid_sample(rgb_tileB, xyz_pixB, align_corners=False)
@@ -406,7 +406,7 @@ class Vox_util(object):
             xyz = self.Ref2Mem(xyz, Z, Y, X)
 
         if grid is None:
-            grid_z, grid_y, grid_x = utils.basic.meshgrid3d(B, Z, Y, X, stack=False, norm=False, device=xyz.device)
+            grid_z, grid_y, grid_x = basic.meshgrid3d(B, Z, Y, X, stack=False, norm=False, device=xyz.device)
             # note the default stack is on -1
             grid = torch.stack([grid_x, grid_y, grid_z], dim=1)
             # this is B x 3 x Z x Y x X
@@ -462,7 +462,7 @@ class Vox_util(object):
 
         xz = torch.stack([xyz[:,:,0], xyz[:,:,2]], dim=2)
 
-        grid_z, grid_x = utils.basic.meshgrid2d(B, Z, X, stack=False, norm=False, device=xyz.device)
+        grid_z, grid_x = basic.meshgrid2d(B, Z, X, stack=False, norm=False, device=xyz.device)
         # note the default stack is on -1
         grid = torch.stack([grid_x, grid_z], dim=1)
         # this is B x 2 x Z x X

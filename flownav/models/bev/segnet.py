@@ -4,11 +4,11 @@ import torch.nn.functional as F
 import numpy as np
 import sys
 sys.path.append("..")
-
-import utils.geom
-import utils.vox
-import utils.misc
-import utils.basic
+# from flownav.models.bev.utils import utils
+from flownav.models.bev.utils import geom
+from flownav.models.bev.utils import vox
+from flownav.models.bev.utils import misc
+from flownav.models.bev.utils import basic
 
 from torchvision.models.resnet import resnet18
 from efficientnet_pytorch import EfficientNet
@@ -367,7 +367,7 @@ class Segnet(nn.Module):
         # set_bn_momentum(self, 0.1)
 
         if vox_util is not None:
-            self.xyz_memA = utils.basic.gridcloud3d(1, Z, Y, X, norm=False)
+            self.xyz_memA = basic.gridcloud3d(1, Z, Y, X, norm=False)
             self.xyz_camA = vox_util.Mem2Ref(self.xyz_memA, Z, Y, X, assert_cube=False)
         else:
             self.xyz_camA = None
@@ -388,12 +388,12 @@ class Segnet(nn.Module):
         B, S, C, H, W = rgb_camXs.shape
         assert(C==3)
         # reshape tensors
-        __p = lambda x: utils.basic.pack_seqdim(x, B)
-        __u = lambda x: utils.basic.unpack_seqdim(x, B)
+        __p = lambda x: basic.pack_seqdim(x, B)
+        __u = lambda x: basic.unpack_seqdim(x, B)
         rgb_camXs_ = __p(rgb_camXs)
         pix_T_cams_ = __p(pix_T_cams)
         cam0_T_camXs_ = __p(cam0_T_camXs)
-        camXs_T_cam0_ = utils.geom.safe_inverse(cam0_T_camXs_)
+        camXs_T_cam0_ = geom.safe_inverse(cam0_T_camXs_)
 
         # rgb encoder
         device = rgb_camXs_.device
@@ -412,20 +412,20 @@ class Segnet(nn.Module):
         Z, Y, X = self.Z, self.Y, self.X
 
         # unproject image feature to 3d grid
-        featpix_T_cams_ = utils.geom.scale_intrinsics(pix_T_cams_, sx, sy)
+        featpix_T_cams_ = geom.scale_intrinsics(pix_T_cams_, sx, sy)
         if self.xyz_camA is not None:
             xyz_camA = self.xyz_camA.to(feat_camXs_.device).repeat(B*S,1,1)
         else:
             xyz_camA = None
         feat_mems_ = vox_util.unproject_image_to_mem(
             feat_camXs_,
-            utils.basic.matmul2(featpix_T_cams_, camXs_T_cam0_),
+            basic.matmul2(featpix_T_cams_, camXs_T_cam0_),
             camXs_T_cam0_, Z, Y, X,
             xyz_camA=xyz_camA)
         feat_mems = __u(feat_mems_) # B, S, C, Z, Y, X
 
         mask_mems = (torch.abs(feat_mems) > 0).float()
-        feat_mem = utils.basic.reduce_masked_mean(feat_mems, mask_mems, dim=1) # B, C, Z, Y, X
+        feat_mem = basic.reduce_masked_mean(feat_mems, mask_mems, dim=1) # B, C, Z, Y, X
 
         if self.rand_flip:
             self.bev_flip1_index = np.random.choice([0,1], B).astype(bool)

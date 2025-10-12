@@ -1,5 +1,5 @@
 import torch
-import utils.basic
+from flownav.models.bev.utils import basic
 
 import numpy as np
 
@@ -108,8 +108,8 @@ def merge_rtlist(rlist, tlist):
     B, N, F = list(tlist.shape)
     assert(F==3)
 
-    __p = lambda x: utils.basic.pack_seqdim(x, B)
-    __u = lambda x: utils.basic.unpack_seqdim(x, B)
+    __p = lambda x: basic.pack_seqdim(x, B)
+    __u = lambda x: basic.unpack_seqdim(x, B)
     rlist_, tlist_ = __p(rlist), __p(tlist)
     rtlist_ = merge_rt(rlist_, tlist_)
     rtlist = __u(rtlist_)
@@ -151,7 +151,7 @@ def apply_4x4_to_lrtlist(Y_T_X, lrtlist_X):
     Y_T_Xs = Y_T_X.unsqueeze(1).repeat(1, N, 1, 1)
     Y_T_Xs_ = Y_T_Xs.view(B*N, 4, 4)
     rtlist_X_ = rtlist_X.reshape(B*N, 4, 4)
-    rtlist_Y_ = utils.basic.matmul2(Y_T_Xs_, rtlist_X_)
+    rtlist_Y_ = basic.matmul2(Y_T_Xs_, rtlist_X_)
     rtlist_Y = rtlist_Y_.reshape(B, N, 4, 4)
     lrtlist_Y = merge_lrtlist(lenlist, rtlist_Y)
     return lrtlist_Y

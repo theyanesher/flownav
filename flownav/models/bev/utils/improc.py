@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import cv2
 
-import utils.basic
+from flownav.models.bev.utils import basic
 
 # color conversion libs, for flow vis
 from skimage.color import (
